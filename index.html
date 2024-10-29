@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guarini谜题</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f9f9f9;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+        h2 {
+            color: #444;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        p {
+            color: #555;
+            font-size: 16px;
+            margin: 5px 0 20px;
+        }
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 80px);
+            gap: 5px;
+            padding: 10px;
+            background-color: #eee;
+            border-radius: 8px;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        .cell {
+            width: 80px;
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            border: 2px solid #bbb;
+            background-color: #fafafa;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        .cell:hover {
+            background-color: #ddd;
+        }
+        .W {
+            color: #000000;
+            font-weight: bold;
+        }
+        .B {
+            color: #000000;
+            font-weight: bold;
+            font-size: 24px;
+        }
+        #steps {
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: #4caf50;
+            color: white;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        canvas {
+            margin-top: 20px;
+            border: 2px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+        }
+    </style>
+</head>
+<body>
+
+<h2>骑士互换游戏 - 点线图模式</h2>
+<p>目标：让黑白骑士互换位置。点击棋子，然后点击空格移动。</p>
+<p id="steps">步数: 0</p>
+<div id="game-container">
+    <button onclick="toggleLabels()">显示/隐藏坐标标签</button>
+
+    <div class="board" id="board">
+        <div class="cell B" data-pos="0,0">♞</div>
+        <div class="cell" data-pos="0,1"></div>
+        <div class="cell B" data-pos="0,2">♞</div>
+        <div class="cell" data-pos="1,0"></div>
+        <div class="cell" data-pos="1,1"></div>
+        <div class="cell" data-pos="1,2"></div>
+        <div class="cell W" data-pos="2,0">♘</div>
+        <div class="cell" data-pos="2,1"></div>
+        <div class="cell W" data-pos="2,2">♘</div>
+    </div>
+
+    <canvas id="graph" width="280" height="280"></canvas>
+</div>
+
+<script>
+    let board = [
+        ["B1", ".", "B2"],
+        [".", ".", "."],
+        ["W1", ".", "W2"]
+    ];
+    let selected = null;
+    let steps = 0;
+    let showLabels = false;
+    const knightMoves = [[2, 1], [2, -1], [-2, 1], [-2, -1], [1, 2], [1, -2], [-1, 2], [-1, -2]];
+    const boardElement = document.getElementById("board");
+    const stepsElement = document.getElementById("steps");
+    const graphCanvas = document.getElementById("graph");
+    const ctx = graphCanvas.getContext("2d");
+
+    // 初始点坐标
+    const points = [
+        { x: 50, y: 50 }, { x: 130, y: 50 }, { x: 210, y: 50 },
+        { x: 50, y: 130 }, { x: 130, y: 130 }, { x: 210, y: 130 },
+        { x: 50, y: 210 }, { x: 130, y: 210 }, { x: 210, y: 210 }
+    ];
+
+    let draggingPoint = null;
+
+    function updateBoard() {
+        boardElement.querySelectorAll('.cell').forEach((cell, index) => {
+            const [x, y] = cell.getAttribute('data-pos').split(',').map(Number);
+            if (showLabels) {
+                cell.textContent = board[x][y] !== "." ? board[x][y] : index + 1;
+            } else {
+                cell.textContent = board[x][y] === "W1" ? "♘" :
+                                   board[x][y] === "W2" ? "♘" :
+                                   board[x][y] === "B1" ? "♞" :
+                                   board[x][y] === "B2" ? "♞" : "";
+            }
+            cell.className = `cell ${board[x][y][0]}`;
+        });
+        stepsElement.textContent = `步数: ${steps}`;
+        drawGraph();
+    }
+
+    function drawGraph() {
+    ctx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+    
+    const cellSize = 80; // 每个单元格的大小
+
+    // 绘制点和骑士符号
+    points.forEach((point, index) => {
+        const x = point.x;
+        const y = point.y;
+
+        ctx.beginPath();
+        ctx.arc(x, y, 12, 0, 2 * Math.PI);
+
+        // 判断点是否为白骑士或黑骑士，并设置相应样式
+        const piece = board[Math.floor(index / 3)][index % 3];
+        if (piece === "W1" || piece === "W2") {
+            ctx.fillStyle = "white";       // 白色填充
+            ctx.strokeStyle = "black";      // 蓝色边框
+            ctx.fill();
+            ctx.stroke();
+            ctx.font = "20px Arial";       
+            ctx.fillStyle = "black";        
+            ctx.fillText("♘", x - 6, y + 6); // 微调居中位置
+        } else if (piece === "B1" || piece === "B2") {
+            ctx.fillStyle = "white";       
+            ctx.strokeStyle = "black";       
+            ctx.fill();
+            ctx.stroke();
+            ctx.font = "20px Arial";       
+            ctx.fillStyle = "black";         
+            ctx.fillText("♞", x - 6, y + 6); // 微调居中位置
+        } else {
+            ctx.fillStyle = "white";        
+            ctx.strokeStyle = "gray";      
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        // 绘制点标签
+        if (showLabels) {
+            ctx.font = "12px Arial";
+            ctx.fillStyle = "black";
+            ctx.fillText(index + 1, x - 4, y - 10);
+        }
+    });
+
+    // 绘制线段
+    points.forEach((point, i) => {
+        knightMoves.forEach(([dx, dy]) => {
+            const ni = Math.floor(i / 3) + dx, nj = i % 3 + dy;
+            const niIndex = ni * 3 + nj;
+            if (isInBounds(ni, nj)) {
+                const x1 = point.x;
+                const y1 = point.y;
+                const x2 = points[niIndex].x;
+                const y2 = points[niIndex].y;
+
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.strokeStyle = "#aaa";
+                ctx.stroke();
+            }
+        });
+    });
+}
+    function toggleLabels() {
+        showLabels = !showLabels;
+        updateBoard();
+    }
+
+    function isInBounds(x, y) {
+        return x >= 0 && x < 3 && y >= 0 && y < 3;
+    }
+
+    function canMoveKnight(x1, y1, x2, y2) {
+        return knightMoves.some(([dx, dy]) => x2 === x1 + dx && y2 === y1 + dy);
+    }
+
+    boardElement.addEventListener("click", (event) => {
+        const cell = event.target;
+        const [x, y] = cell.getAttribute('data-pos').split(',').map(Number);
+
+        if (selected) {
+            const [sx, sy] = selected;
+            if (board[sx][sy] && board[x][y] === "." && canMoveKnight(sx, sy, x, y)) {
+                board[x][y] = board[sx][sy];
+                board[sx][sy] = ".";
+                steps++;
+                selected = null;
+                updateBoard();
+
+                if (JSON.stringify(board) === JSON.stringify([["W1", ".", "W2"], [".", ".", "."], ["B1", ".", "B2"]])) {
+                    alert(`恭喜！你完成了挑战，共用步数：${steps}`);
+                }
+            } else {
+                selected = board[x][y] ? [x, y] : null;
+            }
+        } else {
+            selected = board[x][y] ? [x, y] : null;
+        }
+    });
+
+    graphCanvas.addEventListener("mousedown", (e) => {
+        const mouseX = e.offsetX;
+        const mouseY = e.offsetY;
+        draggingPoint = points.find(point => Math.hypot(point.x - mouseX, point.y - mouseY) < 8);
+    });
+
+    graphCanvas.addEventListener("mousemove", (e) => {
+        if (draggingPoint) {
+            draggingPoint.x = e.offsetX;
+            draggingPoint.y = e.offsetY;
+            drawGraph();
+        }
+    });
+
+    graphCanvas.addEventListener("mouseup", () => {
+        draggingPoint = null;
+    });
+
+    updateBoard();
+</script>
+
+</body>
+</html>
