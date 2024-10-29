@@ -92,7 +92,7 @@
 </head>
 <body>
 
-<h2>骑士互换游戏 - 点线图模式</h2>
+<h2>Guarini谜题</h2>
 <p>目标：让黑白骑士互换位置。点击棋子，然后点击空格移动。</p>
 <p id="steps">步数: 0</p>
 <div id="game-container">
@@ -155,71 +155,70 @@
     }
 
     function drawGraph() {
-    ctx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
-    
-    const cellSize = 80; // 每个单元格的大小
+        ctx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
 
-    // 绘制点和骑士符号
-    points.forEach((point, index) => {
-        const x = point.x;
-        const y = point.y;
+        // 绘制点和骑士符号
+        points.forEach((point, index) => {
+            const x = point.x;
+            const y = point.y;
 
-        ctx.beginPath();
-        ctx.arc(x, y, 12, 0, 2 * Math.PI);
+            ctx.beginPath();
+            ctx.arc(x, y, 12, 0, 2 * Math.PI);
 
-        // 判断点是否为白骑士或黑骑士，并设置相应样式
-        const piece = board[Math.floor(index / 3)][index % 3];
-        if (piece === "W1" || piece === "W2") {
-            ctx.fillStyle = "white";       // 白色填充
-            ctx.strokeStyle = "black";      // 蓝色边框
-            ctx.fill();
-            ctx.stroke();
-            ctx.font = "20px Arial";       
-            ctx.fillStyle = "black";        
-            ctx.fillText("♘", x - 6, y + 6); // 微调居中位置
-        } else if (piece === "B1" || piece === "B2") {
-            ctx.fillStyle = "white";       
-            ctx.strokeStyle = "black";       
-            ctx.fill();
-            ctx.stroke();
-            ctx.font = "20px Arial";       
-            ctx.fillStyle = "black";         
-            ctx.fillText("♞", x - 6, y + 6); // 微调居中位置
-        } else {
-            ctx.fillStyle = "white";        
-            ctx.strokeStyle = "gray";      
-            ctx.fill();
-            ctx.stroke();
-        }
-
-        // 绘制点标签
-        if (showLabels) {
-            ctx.font = "12px Arial";
-            ctx.fillStyle = "black";
-            ctx.fillText(index + 1, x - 4, y - 10);
-        }
-    });
-
-    // 绘制线段
-    points.forEach((point, i) => {
-        knightMoves.forEach(([dx, dy]) => {
-            const ni = Math.floor(i / 3) + dx, nj = i % 3 + dy;
-            const niIndex = ni * 3 + nj;
-            if (isInBounds(ni, nj)) {
-                const x1 = point.x;
-                const y1 = point.y;
-                const x2 = points[niIndex].x;
-                const y2 = points[niIndex].y;
-
-                ctx.beginPath();
-                ctx.moveTo(x1, y1);
-                ctx.lineTo(x2, y2);
-                ctx.strokeStyle = "#aaa";
+            // 判断点是否为白骑士或黑骑士，并设置相应样式
+            const piece = board[Math.floor(index / 3)][index % 3];
+            if (piece === "W1" || piece === "W2") {
+                ctx.fillStyle = "white";       
+                ctx.strokeStyle = "black";      
+                ctx.fill();
+                ctx.stroke();
+                ctx.font = "20px Arial";       
+                ctx.fillStyle = "black";        
+                ctx.fillText("♘", x - 6, y + 6); // 微调居中位置
+            } else if (piece === "B1" || piece === "B2") {
+                ctx.fillStyle = "white";       
+                ctx.strokeStyle = "black";       
+                ctx.fill();
+                ctx.stroke();
+                ctx.font = "20px Arial";       
+                ctx.fillStyle = "black";         
+                ctx.fillText("♞", x - 6, y + 6); // 微调居中位置
+            } else {
+                ctx.fillStyle = "white";        
+                ctx.strokeStyle = "gray";      
+                ctx.fill();
                 ctx.stroke();
             }
+
+            // 绘制点标签
+            if (showLabels) {
+                ctx.font = "12px Arial";
+                ctx.fillStyle = "black";
+                ctx.fillText(index + 1, x - 4, y - 10);
+            }
         });
-    });
-}
+
+        // 绘制线段
+        points.forEach((point, i) => {
+            knightMoves.forEach(([dx, dy]) => {
+                const ni = Math.floor(i / 3) + dx, nj = i % 3 + dy;
+                const niIndex = ni * 3 + nj;
+                if (isInBounds(ni, nj)) {
+                    const x1 = point.x;
+                    const y1 = point.y;
+                    const x2 = points[niIndex].x;
+                    const y2 = points[niIndex].y;
+
+                    ctx.beginPath();
+                    ctx.moveTo(x1, y1);
+                    ctx.lineTo(x2, y2);
+                    ctx.strokeStyle = "#aaa";
+                    ctx.stroke();
+                }
+            });
+        });
+    }
+
     function toggleLabels() {
         showLabels = !showLabels;
         updateBoard();
@@ -257,23 +256,36 @@
         }
     });
 
-    graphCanvas.addEventListener("mousedown", (e) => {
-        const mouseX = e.offsetX;
-        const mouseY = e.offsetY;
-        draggingPoint = points.find(point => Math.hypot(point.x - mouseX, point.y - mouseY) < 8);
-    });
+    // 处理鼠标和触摸事件
+    graphCanvas.addEventListener("mousedown", startDragging);
+    graphCanvas.addEventListener("touchstart", startDragging);
 
-    graphCanvas.addEventListener("mousemove", (e) => {
+    function startDragging(e) {
+        const mouseX = e.offsetX || e.touches[0].clientX - graphCanvas.getBoundingClientRect().left;
+        const mouseY = e.offsetY || e.touches[0].clientY - graphCanvas.getBoundingClientRect().top;
+        draggingPoint = points.find(point => Math.hypot(point.x - mouseX, point.y - mouseY) < 8);
+    }
+
+    graphCanvas.addEventListener("mousemove", dragPoint);
+    graphCanvas.addEventListener("touchmove", dragPoint);
+
+    function dragPoint(e) {
         if (draggingPoint) {
-            draggingPoint.x = e.offsetX;
-            draggingPoint.y = e.offsetY;
+            e.preventDefault(); // 阻止页面滚动
+            const mouseX = e.offsetX || e.touches[0].clientX - graphCanvas.getBoundingClientRect().left;
+            const mouseY = e.offsetY || e.touches[0].clientY - graphCanvas.getBoundingClientRect().top;
+            draggingPoint.x = mouseX;
+            draggingPoint.y = mouseY;
             drawGraph();
         }
-    });
+    }
 
-    graphCanvas.addEventListener("mouseup", () => {
+    graphCanvas.addEventListener("mouseup", stopDragging);
+    graphCanvas.addEventListener("touchend", stopDragging);
+
+    function stopDragging() {
         draggingPoint = null;
-    });
+    }
 
     updateBoard();
 </script>
